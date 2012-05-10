@@ -1,11 +1,22 @@
 #!/usr/bin/env python
 
-from PyQt4.QtCore import QObject
-from PyQt4.QtGui import (QApplication, QFileDialog, QHBoxLayout, QLabel,
-                         QLineEdit, QMainWindow, QPushButton, QTableView,
+from sip import setapi
+setapi("QDate", 2)
+setapi("QDateTime", 2)
+setapi("QTextStream", 2)
+setapi("QTime", 2)
+setapi("QVariant", 2)
+setapi("QString", 2)
+setapi("QUrl", 2)
+
+from PyQt4.QtCore import QObject, Qt, QUrl
+from PyQt4.QtGui import (QApplication, QDialog, QDialogButtonBox, QFileDialog,
+                         QHBoxLayout, QLabel, QLineEdit, QMainWindow,
+                         QPushButton, QTableView, QTreeWidget, QTreeWidgetItem,
                          QVBoxLayout, QWidget)
 from PyQt4.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from base64 import b64decode
+from json import loads
 from os import path
 import sys
 
@@ -57,18 +68,56 @@ class LastController(QObject):
 
     def __init__(self, parent=None):
         super(LastController, self).__init__(parent)
+        self.__networkManager = QNetworkAccessManager()
 
     def setView(self, view):
         self.setParent(view)
-        view.directoryButton.clicked.connect(self.chooseDirectory)
+        view.directoryButton.clicked.connect(self.__chooseDirectory)
+        view.albumButton.clicked.connect(self.__searchAlbum)
 
-    def chooseDirectory(self):
+    def __chooseDirectory(self):
         directory = QFileDialog.getExistingDirectory(self.parent(),
                                                    'Select Directory',
                                                    path.expanduser('~'),
                                                    QFileDialog.ShowDirsOnly)
         directoryEdit = self.parent().directoryEdit
         directoryEdit.setText(directory)
+
+    def __searchAlbum(self):
+        url = QUrl('http://ws.audioscrobbler.com/2.0/')
+        url.addQueryItem('api_key', self.__last_fm_key)
+        url.addQueryItem('method', 'album.search')
+        url.addQueryItem('format', 'json')
+        album = self.parent().albumEdit.text().strip()
+        url.addQueryItem('album', album)
+        request = QNetworkRequest(url)
+        reply = self.__networkManager.get(request)
+        reply.finished.connect(self.__loadSearch)
+
+    def __loadSearch(self):
+        reply = self.sender()
+        json = loads(reply.readAll().data())
+        albums = json['results']['albummatches']['album']
+
+        dialog = AlbumDialog(albums, self.parent())
+        dialog.exec_()
+
+
+class AlbumDialog(QDialog):
+
+    def __init__(self, albums, parent=None):
+        super(AlbumDialog, self).__init__(parent, Qt.Dialog)
+        layout = QVBoxLayout()
+        treeWidget = QTreeWidget()
+        treeWidget.setHeaderLabels(['Album', 'Artist'])
+        layout.addWidget(treeWidget)
+        buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        layout.addWidget(buttonBox)
+        self.setLayout(layout)
+
+        items = [QTreeWidgetItem([album['name'], album['artist']])
+                  for album in albums]
+        treeWidget.addTopLevelItems(items)
 
 
 def main():
