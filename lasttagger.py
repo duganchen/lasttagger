@@ -94,17 +94,23 @@ class LastController(QObject):
     def __loadSearch(self):
         reply = self.sender()
         json = loads(reply.readAll().data())
+        reply.deleteLater()
+
         albums = json['results']['albummatches']['album']
 
         dialog = AlbumDialog(albums, self.parent())
         if dialog.exec_() != QDialog.Accepted:
             return None
         item = dialog.getSelectedItem()
-        if item is not None:
+        if item is None:
             return None
         name, artist = item
+
         print (name, artist)
-        reply.deleteLater()
+        reply = self.__get_reply({'method': 'album.getinfo',
+                                  'album': name,
+                                  'artist': artist})
+        reply.finished.connect(self.__load_tracks)
 
     def __editText(self, text):
         isEnabled = len(text.strip()) > 0
@@ -118,6 +124,13 @@ class LastController(QObject):
             url.addQueryItem(key, value)
         request = QNetworkRequest(url)
         return self.__networkManager.get(request)
+
+    def __load_tracks(self):
+        print 'tracks loaded'
+        reply = self.sender()
+        json = loads(reply.readAll().data())
+        reply.deleteLater()
+        print [x['name'] for x in json['album']['tracks']['track']]
 
 
 class AlbumDialog(QDialog):
