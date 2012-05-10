@@ -11,13 +11,14 @@ setapi("QUrl", 2)
 
 from PyQt4.QtCore import QObject, Qt, QUrl
 from PyQt4.QtGui import (QApplication, QDialog, QDialogButtonBox, QFileDialog,
-                         QHBoxLayout, QLabel, QLineEdit, QMainWindow,
-                         QPushButton, QTableView, QTreeWidget, QTreeWidgetItem,
-                         QVBoxLayout, QWidget)
+                         QHBoxLayout, QLabel, QLineEdit, QListWidget,
+                         QMainWindow, QMessageBox, QPushButton, QSplitter,
+                         QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 from PyQt4.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from base64 import b64decode
 from json import loads
-from os import path
+from os import listdir
+from os.path import expanduser, realpath
 import sys
 
 
@@ -29,13 +30,21 @@ class LastTagger(QMainWindow):
         widget = QWidget()
         layout = QVBoxLayout()
 
+        splitter = QSplitter()
+        fileLayout = QVBoxLayout()
+
         directoryLayout = QHBoxLayout()
         self.directoryButton = QPushButton('Choose &directory:')
         directoryLayout.addWidget(self.directoryButton)
         self.directoryEdit = QLineEdit()
         self.directoryEdit.setReadOnly(True)
         directoryLayout.addWidget(self.directoryEdit)
-        layout.addLayout(directoryLayout)
+        fileLayout.addLayout(directoryLayout)
+        self.fileList = QListWidget()
+        fileLayout.addWidget(self.fileList)
+        directoryWidget = QWidget()
+        directoryWidget.setLayout(fileLayout)
+        splitter.addWidget(directoryWidget)
 
         albumLayout = QHBoxLayout()
         albumLabel = QLabel('&Album name:')
@@ -46,10 +55,15 @@ class LastTagger(QMainWindow):
         self.albumButton = QPushButton('&Search')
         self.albumButton.setEnabled(False)
         albumLayout.addWidget(self.albumButton)
-        layout.addLayout(albumLayout)
+        tagLayout = QVBoxLayout()
+        tagLayout.addLayout(albumLayout)
+        self.trackList = QListWidget()
+        tagLayout.addWidget(self.trackList)
+        albumWidget = QWidget()
+        albumWidget.setLayout(tagLayout)
+        splitter.addWidget(albumWidget)
 
-        dataView = QTableView()
-        layout.addWidget(dataView)
+        layout.addWidget(splitter)
 
         self.writeButton = QPushButton('&Write tags')
         self.writeButton.setEnabled(False)
@@ -80,10 +94,17 @@ class LastController(QObject):
     def __chooseDirectory(self):
         directory = QFileDialog.getExistingDirectory(self.parent(),
                                                    'Select Directory',
-                                                   path.expanduser('~'),
+                                                   realpath(expanduser('~')),
                                                    QFileDialog.ShowDirsOnly)
+        directory = realpath(directory)
         directoryEdit = self.parent().directoryEdit
         directoryEdit.setText(directory)
+
+        for i in reversed(range(self.parent().fileList.count())):
+            self.parent().fileList.takeItem(i)
+
+        for filename in sorted(listdir(directory)):
+            self.parent().fileList.addItem(filename)
 
     def __searchAlbum(self):
         album = self.parent().albumEdit.text().strip()
@@ -96,7 +117,13 @@ class LastController(QObject):
         json = loads(reply.readAll().data())
         reply.deleteLater()
 
-        albums = json['results']['albummatches']['album']
+        matches = json['results']['albummatches']
+        if type(matches) != dict:
+            QMessageBox.information(self.parent(),
+                                    'No albums found',
+                                    'No albums found')
+            return
+        albums = matches['album']
 
         dialog = AlbumDialog(albums, self.parent())
         if dialog.exec_() != QDialog.Accepted:
@@ -106,7 +133,6 @@ class LastController(QObject):
             return None
         name, artist = item
 
-        print (name, artist)
         reply = self.__get_reply({'method': 'album.getinfo',
                                   'album': name,
                                   'artist': artist})
@@ -126,11 +152,14 @@ class LastController(QObject):
         return self.__networkManager.get(request)
 
     def __load_tracks(self):
-        print 'tracks loaded'
         reply = self.sender()
         json = loads(reply.readAll().data())
         reply.deleteLater()
-        print [x['name'] for x in json['album']['tracks']['track']]
+        tracks = [x['name'] for x in json['album']['tracks']['track']]
+        for i in reversed(range(self.parent().trackList.count())):
+            self.parent().trackList.takeItem(i)
+        for track in tracks:
+            self.parent().trackList.addItem(track)
 
 
 class AlbumDialog(QDialog):
