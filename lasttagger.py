@@ -44,6 +44,7 @@ class LastTagger(QMainWindow):
         albumLabel.setBuddy(self.albumEdit)
         albumLayout.addWidget(self.albumEdit)
         self.albumButton = QPushButton('&Search')
+        self.albumButton.setEnabled(False)
         albumLayout.addWidget(self.albumButton)
         layout.addLayout(albumLayout)
 
@@ -74,6 +75,7 @@ class LastController(QObject):
         self.setParent(view)
         view.directoryButton.clicked.connect(self.__chooseDirectory)
         view.albumButton.clicked.connect(self.__searchAlbum)
+        view.albumEdit.textEdited.connect(self.__editText)
 
     def __chooseDirectory(self):
         directory = QFileDialog.getExistingDirectory(self.parent(),
@@ -84,14 +86,9 @@ class LastController(QObject):
         directoryEdit.setText(directory)
 
     def __searchAlbum(self):
-        url = QUrl('http://ws.audioscrobbler.com/2.0/')
-        url.addQueryItem('api_key', self.__last_fm_key)
-        url.addQueryItem('method', 'album.search')
-        url.addQueryItem('format', 'json')
         album = self.parent().albumEdit.text().strip()
-        url.addQueryItem('album', album)
-        request = QNetworkRequest(url)
-        reply = self.__networkManager.get(request)
+        reply = self.__get_reply({'method': 'album.search',
+                                  'album': album})
         reply.finished.connect(self.__loadSearch)
 
     def __loadSearch(self):
@@ -100,8 +97,27 @@ class LastController(QObject):
         albums = json['results']['albummatches']['album']
 
         dialog = AlbumDialog(albums, self.parent())
-        if dialog.exec_() == QDialog.Accepted:
-            print dialog.getSelectedItem()
+        if dialog.exec_() != QDialog.Accepted:
+            return None
+        item = dialog.getSelectedItem()
+        if item is not None:
+            return None
+        name, artist = item
+        print (name, artist)
+        reply.deleteLater()
+
+    def __editText(self, text):
+        isEnabled = len(text.strip()) > 0
+        self.parent().albumButton.setEnabled(isEnabled)
+
+    def __get_reply(self, params):
+        url = QUrl('http://ws.audioscrobbler.com/2.0/')
+        url.addQueryItem('api_key', self.__last_fm_key)
+        url.addQueryItem('format', 'json')
+        for key, value in params.iteritems():
+            url.addQueryItem(key, value)
+        request = QNetworkRequest(url)
+        return self.__networkManager.get(request)
 
 
 class AlbumDialog(QDialog):
