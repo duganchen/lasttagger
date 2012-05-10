@@ -100,7 +100,8 @@ class LastController(QObject):
         albums = json['results']['albummatches']['album']
 
         dialog = AlbumDialog(albums, self.parent())
-        dialog.exec_()
+        if dialog.exec_() == QDialog.Accepted:
+            print dialog.getSelectedItem()
 
 
 class AlbumDialog(QDialog):
@@ -108,16 +109,25 @@ class AlbumDialog(QDialog):
     def __init__(self, albums, parent=None):
         super(AlbumDialog, self).__init__(parent, Qt.Dialog)
         layout = QVBoxLayout()
-        treeWidget = QTreeWidget()
-        treeWidget.setHeaderLabels(['Album', 'Artist'])
-        layout.addWidget(treeWidget)
+        self.treeWidget = QTreeWidget()
+        self.treeWidget.setHeaderLabels(['Album', 'Artist'])
+        layout.addWidget(self.treeWidget)
         buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttonBox.accepted.connect(self.accept)
+        buttonBox.rejected.connect(self.reject)
         layout.addWidget(buttonBox)
         self.setLayout(layout)
 
         items = [QTreeWidgetItem([album['name'], album['artist']])
                   for album in albums]
-        treeWidget.addTopLevelItems(items)
+        self.treeWidget.addTopLevelItems(items)
+
+    def getSelectedItem(self):
+        items = self.treeWidget.selectedItems()
+        if len(items) == 0:
+            return None
+        item = items[0]
+        return (item.data(0, Qt.DisplayRole), item.data(1, Qt.DisplayRole))
 
 
 def main():
