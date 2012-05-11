@@ -9,16 +9,17 @@ setapi("QVariant", 2)
 setapi("QString", 2)
 setapi("QUrl", 2)
 
-from PyQt4.QtCore import QObject, Qt, QUrl
+from PyQt4.QtCore import QAbstractListModel, QModelIndex, QObject, Qt, QUrl
 from PyQt4.QtGui import (QApplication, QDialog, QDialogButtonBox, QFileDialog,
-                         QHBoxLayout, QLabel, QLineEdit, QListWidget,
+                         QHBoxLayout, QLabel, QLineEdit, QListView,
                          QMainWindow, QMessageBox, QPushButton, QSplitter,
                          QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 from PyQt4.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from base64 import b64decode
 from json import loads
+from mutagen import File
 from os import listdir
-from os.path import expanduser, realpath
+from os.path import basename, exists, expanduser, isfile, join, realpath
 import sys
 
 
@@ -40,8 +41,10 @@ class LastTagger(QMainWindow):
         self.directoryEdit.setReadOnly(True)
         directoryLayout.addWidget(self.directoryEdit)
         fileLayout.addLayout(directoryLayout)
-        self.fileList = QListWidget()
-        fileLayout.addWidget(self.fileList)
+        fileView = QListView()
+        self.fileModel = FileModel(fileView)
+        fileView.setModel(self.fileModel)
+        fileLayout.addWidget(fileView)
         directoryWidget = QWidget()
         directoryWidget.setLayout(fileLayout)
         splitter.addWidget(directoryWidget)
@@ -57,8 +60,10 @@ class LastTagger(QMainWindow):
         albumLayout.addWidget(self.albumButton)
         tagLayout = QVBoxLayout()
         tagLayout.addLayout(albumLayout)
-        self.trackList = QListWidget()
-        tagLayout.addWidget(self.trackList)
+        trackView = QListView()
+        self.trackModel = TrackModel(trackView)
+        trackView.setModel(self.trackModel)
+        tagLayout.addWidget(trackView)
         albumWidget = QWidget()
         albumWidget.setLayout(tagLayout)
         splitter.addWidget(albumWidget)
@@ -92,19 +97,23 @@ class LastController(QObject):
         view.albumEdit.textEdited.connect(self.__editText)
 
     def __chooseDirectory(self):
+        user = realpath(expanduser('~'))
+        music = realpath(join(user, 'Music'))
+        start = music if exists(music) else user
         directory = QFileDialog.getExistingDirectory(self.parent(),
                                                    'Select Directory',
-                                                   realpath(expanduser('~')),
+                                                   start,
                                                    QFileDialog.ShowDirsOnly)
         directory = realpath(directory)
         directoryEdit = self.parent().directoryEdit
         directoryEdit.setText(directory)
 
-        for i in reversed(range(self.parent().fileList.count())):
-            self.parent().fileList.takeItem(i)
-
-        for filename in sorted(listdir(directory)):
-            self.parent().fileList.addItem(filename)
+        paths = (realpath(join(directory, filename))
+                 for filename in sorted(listdir(directory)))
+        files = (File(path) for path in paths if isfile(path))
+        songs = [song for song in files if song is not None]
+        self.parent().fileModel.empty()
+        self.parent().fileModel.addItems(songs)
 
     def __searchAlbum(self):
         album = self.parent().albumEdit.text().strip()
@@ -155,11 +164,8 @@ class LastController(QObject):
         reply = self.sender()
         json = loads(reply.readAll().data())
         reply.deleteLater()
-        tracks = [x['name'] for x in json['album']['tracks']['track']]
-        for i in reversed(range(self.parent().trackList.count())):
-            self.parent().trackList.takeItem(i)
-        for track in tracks:
-            self.parent().trackList.addItem(track)
+        self.parent().trackModel.empty()
+        self.parent().trackModel.addItems(json['album']['tracks']['track'])
 
 
 class AlbumDialog(QDialog):
@@ -186,6 +192,56 @@ class AlbumDialog(QDialog):
             return None
         item = items[0]
         return (item.data(0, Qt.DisplayRole), item.data(1, Qt.DisplayRole))
+
+
+class ListModel(QAbstractListModel):
+
+    def __init__(self, parent=None):
+        super(ListModel, self).__init__(parent)
+        self._items = []
+
+    def addItems(self, items):
+        top = len(self._items)
+        self.beginInsertRows(QModelIndex(), top, top + len(items))
+        self._items.extend(items)
+        self.endInsertRows()
+
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid():
+            return None
+
+        if index.row() > len(self._items):
+            return None
+
+        if role == Qt.DisplayRole or role == Qt.EditRole:
+            return self.getData(index.row()).decode('utf-8')
+
+        return None
+
+    def empty(self):
+        self.beginRemoveRows(QModelIndex(), 0, len(self._items) - 1)
+        del self._items[:]
+        self.endRemoveRows()
+
+    def rowCount(self, parent=QModelIndex()):
+        return len(self._items)
+
+
+class FileModel(ListModel):
+
+    def __init__(self, parent=None):
+        super(FileModel, self).__init__(parent)
+
+    def getData(self, row):
+        return basename(self._items[row].filename)
+
+
+class TrackModel(ListModel):
+    def __init__(self, parent=None):
+        super(TrackModel, self).__init__(parent)
+
+    def getData(self, row):
+        return self._items[row]['name']
 
 
 def main():
