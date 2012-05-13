@@ -9,7 +9,8 @@ setapi("QVariant", 2)
 setapi("QString", 2)
 setapi("QUrl", 2)
 
-from PyQt4.QtCore import QAbstractListModel, QModelIndex, QObject, Qt, QUrl
+from PyQt4.QtCore import (QAbstractListModel, QModelIndex, QObject, Qt, QUrl,
+                          pyqtSignal)
 from PyQt4.QtGui import (QApplication, QDialog, QDialogButtonBox, QFileDialog,
                          QHBoxLayout, QLabel, QLineEdit, QListView,
                          QMainWindow, QMessageBox, QPushButton, QSplitter,
@@ -86,6 +87,8 @@ class LastController(QObject):
     # Yes, this is the same as Quetzalcoatl's.
     __last_fm_key = b64decode('Mjk1YTAxY2ZhNjVmOWU1MjFiZGQyY2MzYzM2ZDdjODk=')
 
+    writable = pyqtSignal(bool)
+
     def __init__(self, parent=None):
         super(LastController, self).__init__(parent)
         self.__networkManager = QNetworkAccessManager()
@@ -95,6 +98,8 @@ class LastController(QObject):
         view.directoryButton.clicked.connect(self.__chooseDirectory)
         view.albumButton.clicked.connect(self.__searchAlbum)
         view.albumEdit.textEdited.connect(self.__editText)
+        self.writable.connect(view.writeButton.setEnabled)
+        view.writeButton.clicked.connect(self.__writeTracks)
 
     def __chooseDirectory(self):
         user = realpath(expanduser('~'))
@@ -114,10 +119,11 @@ class LastController(QObject):
         songs = [song for song in files if song is not None]
         self.parent().fileModel.empty()
         self.parent().fileModel.addItems(songs)
+        self.__checkWritable()
 
     def __searchAlbum(self):
         album = self.parent().albumEdit.text().strip()
-        reply = self.__get_reply({'method': 'album.search',
+        reply = self.__getReply({'method': 'album.search',
                                   'album': album})
         reply.finished.connect(self.__loadSearch)
 
@@ -142,16 +148,16 @@ class LastController(QObject):
             return None
         name, artist = item
 
-        reply = self.__get_reply({'method': 'album.getinfo',
+        reply = self.__getReply({'method': 'album.getinfo',
                                   'album': name,
                                   'artist': artist})
-        reply.finished.connect(self.__load_tracks)
+        reply.finished.connect(self.__loadTracks)
 
     def __editText(self, text):
         isEnabled = len(text.strip()) > 0
         self.parent().albumButton.setEnabled(isEnabled)
 
-    def __get_reply(self, params):
+    def __getReply(self, params):
         url = QUrl('http://ws.audioscrobbler.com/2.0/')
         url.addQueryItem('api_key', self.__last_fm_key)
         url.addQueryItem('format', 'json')
@@ -160,12 +166,21 @@ class LastController(QObject):
         request = QNetworkRequest(url)
         return self.__networkManager.get(request)
 
-    def __load_tracks(self):
+    def __loadTracks(self):
         reply = self.sender()
         json = loads(reply.readAll().data())
         reply.deleteLater()
         self.parent().trackModel.empty()
         self.parent().trackModel.addItems(json['album']['tracks']['track'])
+        self.__checkWritable()
+
+    def __checkWritable(self):
+        hasFiles = self.parent().fileModel.rowCount() > 0
+        hasTracks = self.parent().trackModel.rowCount() > 0
+        self.writable.emit(hasFiles and hasTracks)
+
+    def __writeTracks(self):
+        print 'Writing tracks'
 
 
 class AlbumDialog(QDialog):
