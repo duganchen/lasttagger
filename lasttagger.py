@@ -181,7 +181,9 @@ class LastController(QObject):
         for track in tracks:
             track['album'] = json['album']['name']
             if json['album']['artist'] != track['artist']['name']:
-                track['album artist'] = json['album']['artist']
+
+                # Performer is album artist.
+                track['performer'] = json['album']['artist']
             if 'mbid' in json['album'] and len(json['album']['mbid']) > 0:
                 track['musicbrainz_albumid'] = json['album']['mbid']
         self.parent().trackModel.addItems(tracks)
@@ -201,32 +203,36 @@ class LastController(QObject):
             track = self.parent().trackModel.item(row)
 
             if 'name' in track and len(track['name'].strip()) > 0:
-                audio['title'] = track['name'].encode('utf-8')
+                audio['title'] = track['name']
             elif 'title' in audio:
                 del audio['title']
 
             if 'album' in track and len(track['album'].strip()) > 0:
-                audio['album'] = track['album'].encode('utf-8')
+                audio['album'] = track['album']
             elif 'album' in audio:
                 del audio['album']
 
             if 'musicbrainz_albumid' in track and len(track['musicbrainz_albumid'].strip()) > 0:
-                audio['musicbrainz_albumid'] = track['musicbrainz_albumid'].encode('utf-8')
+                audio['musicbrainz_albumid'] = track['musicbrainz_albumid']
             elif 'musicbrainz_albumid' in audio:
                 del audio['musicbrainz_albumid']
 
             if 'mbid' in track and len(track['mbid'].strip()) > 0:
-                audio['musicbrainz_trackid'] = track['mbid'].encode('utf-8')
+                audio['musicbrainz_trackid'] = track['mbid']
             elif 'musicbrainz_trackid' in audio:
                 del audio['musicbrainz_trackid']
 
-            if 'album artist' in track and track['album artist'] != track['artist']['name']:
-                audio['album artist'] = track['album artist'].encode('utf-8')
-            elif 'album artist' in audio:
-                del audio['album artist']
+            # As far as I can tell, performer and albumartist are the same tag.
+            if 'performer' in audio:
+                del audio['performer']
+
+            if 'performer' in track and track['performer'] != track['artist']['name']:
+                audio['albumartist'] = track['performer']
+            elif 'albumartist' in audio:
+                del audio['albumartist']
 
             if 'artist' in track and 'name' in track['artist'] and len(track['artist']['name']) > 0:
-                audio['artist'] = track['artist']['name'].encode('utf-8')
+                audio['artist'] = track['artist']['name']
             elif 'artist' in audio:
                 del audio['artist']
 
