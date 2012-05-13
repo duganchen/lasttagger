@@ -171,6 +171,11 @@ class LastController(QObject):
         json = loads(reply.readAll().data())
         reply.deleteLater()
         self.parent().trackModel.empty()
+        if type(json['album']['tracks']) != dict:
+            QMessageBox.information(self.parent(),
+                                    'No tracks found',
+                                    'No tracks found')
+            return
         self.parent().trackModel.addItems(json['album']['tracks']['track'])
         self.__checkWritable()
 
