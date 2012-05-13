@@ -19,6 +19,7 @@ from PyQt4.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from base64 import b64decode
 from json import loads
 from mutagen import File
+from mutagen.easyid3 import EasyID3
 from os import listdir
 from os.path import basename, exists, expanduser, isfile, join, realpath
 import sys
@@ -115,7 +116,7 @@ class LastController(QObject):
 
         paths = (realpath(join(directory, filename))
                  for filename in sorted(listdir(directory)))
-        files = (File(path) for path in paths if isfile(path))
+        files = (File(path, easy=True) for path in paths if isfile(path))
         songs = [song for song in files if song is not None]
         self.parent().fileModel.empty()
         self.parent().fileModel.addItems(songs)
@@ -176,7 +177,14 @@ class LastController(QObject):
                                     'No tracks found',
                                     'No tracks found')
             return
-        self.parent().trackModel.addItems(json['album']['tracks']['track'])
+        tracks = json['album']['tracks']['track']
+        for track in tracks:
+            track['album'] = json['album']['name']
+            if json['album']['artist'] != track['artist']['name']:
+                track['album artist'] = json['album']['artist']
+            if 'mbid' in json['album'] and len(json['album']['mbid']) > 0:
+                track['musicbrainz_albumid'] = json['album']['mbid']
+        self.parent().trackModel.addItems(tracks)
         self.__checkWritable()
 
     def __checkWritable(self):
@@ -185,7 +193,53 @@ class LastController(QObject):
         self.writable.emit(hasFiles and hasTracks)
 
     def __writeTracks(self):
-        print 'Writing tracks'
+        lesser = min(self.parent().fileModel.rowCount(),
+                     self.parent().trackModel.rowCount())
+
+        for row in xrange(lesser):
+            audio = self.parent().fileModel.item(row)
+            track = self.parent().trackModel.item(row)
+
+            if 'name' in track and len(track['name'].strip()) > 0:
+                audio['title'] = track['name'].encode('utf-8')
+            elif 'title' in audio:
+                del audio['title']
+
+            if 'album' in track and len(track['album'].strip()) > 0:
+                audio['album'] = track['album'].encode('utf-8')
+            elif 'album' in audio:
+                del audio['album']
+
+            if 'musicbrainz_albumid' in track and len(track['musicbrainz_albumid'].strip()) > 0:
+                audio['musicbrainz_albumid'] = track['musicbrainz_albumid'].encode('utf-8')
+            elif 'musicbrainz_albumid' in audio:
+                del audio['musicbrainz_albumid']
+
+            if 'mbid' in track and len(track['mbid'].strip()) > 0:
+                audio['musicbrainz_trackid'] = track['mbid'].encode('utf-8')
+            elif 'musicbrainz_trackid' in audio:
+                del audio['musicbrainz_trackid']
+
+            if 'album artist' in track and track['album artist'] != track['artist']['name']:
+                audio['album artist'] = track['album artist'].encode('utf-8')
+            elif 'album artist' in audio:
+                del audio['album artist']
+
+            if 'artist' in track and 'name' in track['artist'] and len(track['artist']['name']) > 0:
+                audio['artist'] = track['artist']['name'].encode('utf-8')
+            elif 'artist' in audio:
+                del audio['artist']
+
+            if '@attr' in track and 'rank' in track['@attr'] and len(track['@attr']['rank']) > 0:
+                audio['tracknumber'] = track['@attr']['rank']
+            elif 'tracknumber' in audio:
+                del audio['tracknumber']
+
+            audio.save()
+
+        QMessageBox.information(self.parent(),
+                        'Tracks written',
+                        'Tracks written')
 
 
 class AlbumDialog(QDialog):
@@ -242,6 +296,9 @@ class ListModel(QAbstractListModel):
         self.beginRemoveRows(QModelIndex(), 0, len(self._items) - 1)
         del self._items[:]
         self.endRemoveRows()
+
+    def item(self, row):
+        return self._items[row]
 
     def rowCount(self, parent=QModelIndex()):
         return len(self._items)
