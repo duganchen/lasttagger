@@ -231,6 +231,19 @@ class LastController(QObject):
             elif 'albumartist' in audio:
                 del audio['albumartist']
 
+            if 'artist' in track:
+                if 'name' in track['artist'] and len(track['artist']) > 0:
+                    audio['artist'] = track['artist']['name']
+                elif 'artist' in audio:
+                    del audio['artist']
+
+                if 'mbid' in track['artist'] and len(track['artist']['mbid']) > 0:
+                    audio['musicbrainz_artistid'] = track['artist']['mbid']
+                elif 'musicbrainz_artistid' in audio:
+                    del audio['musicbrainz_artistid']
+            elif 'artist' in audio:
+                del audio['artist']
+
             if 'artist' in track and 'name' in track['artist'] and len(track['artist']['name']) > 0:
                 audio['artist'] = track['artist']['name']
             elif 'artist' in audio:
