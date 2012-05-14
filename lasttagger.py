@@ -267,6 +267,7 @@ class AlbumDialog(QDialog):
         super(AlbumDialog, self).__init__(parent, Qt.Dialog)
         layout = QVBoxLayout()
         self.treeWidget = QTreeWidget()
+        self.treeWidget.setSortingEnabled(True)
         self.treeWidget.setHeaderLabels(['Album', 'Artist'])
         layout.addWidget(self.treeWidget)
         buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
