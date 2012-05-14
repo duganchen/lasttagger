@@ -1,7 +1,12 @@
 Last Tagger
 ===========
 
-The Last Tagger is a Last.fm album tagger.
+The Last Tagger is a Last.fm-backed album tagger.
+
+This only writes a subset of the possible tags (album, artist, album
+artist, track number and their corresponding mbid tags). Use it to
+prepare an already-tagged collection to use with Last.fm-backed
+software.
 
 Dependencies
 ------------
