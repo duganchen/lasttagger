@@ -19,7 +19,6 @@ from PyQt4.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from base64 import b64decode
 from json import loads
 from mutagen import File
-from mutagen.easyid3 import EasyID3
 from os import listdir
 from os.path import basename, exists, expanduser, isfile, join, realpath
 import sys
@@ -141,6 +140,9 @@ class LastController(QObject):
             return
         albums = matches['album']
 
+        if type(albums) == dict:
+            albums = [albums]
+
         dialog = AlbumDialog(albums, self.parent())
         if dialog.exec_() != QDialog.Accepted:
             return None
@@ -173,6 +175,11 @@ class LastController(QObject):
         reply.deleteLater()
         self.parent().trackModel.empty()
         if type(json['album']['tracks']) != dict:
+            QMessageBox.information(self.parent(),
+                                    'No tracks found',
+                                    'No tracks found')
+            return
+        if type(json['album']['tracks']['track']) != list:
             QMessageBox.information(self.parent(),
                                     'No tracks found',
                                     'No tracks found')
@@ -308,7 +315,7 @@ class ListModel(QAbstractListModel):
             return None
 
         if role == Qt.DisplayRole or role == Qt.EditRole:
-            return self.getData(index.row()).decode('utf-8')
+            return self.getData(index.row())
 
         return None
 
