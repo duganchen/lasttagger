@@ -17,7 +17,8 @@ from PyQt4.QtGui import (QApplication, QDialog, QDialogButtonBox, QFileDialog,
                          QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 from PyQt4.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from base64 import b64decode
-from json import loads
+from cStringIO import StringIO
+from lxml import etree
 from mutagen import File
 from os import listdir
 from os.path import basename, exists, expanduser, isfile, join, realpath
@@ -129,23 +130,30 @@ class LastController(QObject):
 
     def __loadSearch(self):
         reply = self.sender()
-        json = loads(reply.readAll().data())
+        f = StringIO(reply.readAll().data())
         reply.deleteLater()
+        tree = etree.parse(f)
 
-        matches = json['results']['albummatches']
-        if type(matches) != dict:
+        albums = []
+        for element in tree.iter('album'):
+            album = {}
+            album['name'] = element.findtext('name')
+            album['artist'] = element.findtext('artist')
+
+            if album['name'] is not None and album['artist'] is not None:
+                albums.append(album)
+
+        if len(albums) == 0:
             QMessageBox.information(self.parent(),
                                     'No albums found',
                                     'No albums found')
             return
-        albums = matches['album']
 
-        if type(albums) == dict:
-            albums = [albums]
 
         dialog = AlbumDialog(albums, self.parent())
         if dialog.exec_() != QDialog.Accepted:
             return None
+
         item = dialog.getSelectedItem()
         if item is None:
             return None
@@ -163,7 +171,6 @@ class LastController(QObject):
     def __getReply(self, params):
         url = QUrl('http://ws.audioscrobbler.com/2.0/')
         url.addQueryItem('api_key', self.__last_fm_key)
-        url.addQueryItem('format', 'json')
         for key, value in params.iteritems():
             url.addQueryItem(key, value)
         request = QNetworkRequest(url)
@@ -171,28 +178,39 @@ class LastController(QObject):
 
     def __loadTracks(self):
         reply = self.sender()
-        json = loads(reply.readAll().data())
+        tree = etree.parse(StringIO(reply.readAll().data()))
         reply.deleteLater()
-        self.parent().trackModel.empty()
-        if type(json['album']['tracks']) != dict:
-            QMessageBox.information(self.parent(),
-                                    'No tracks found',
-                                    'No tracks found')
-            return
-        if type(json['album']['tracks']['track']) != list:
-            QMessageBox.information(self.parent(),
-                                    'No tracks found',
-                                    'No tracks found')
-            return
-        tracks = json['album']['tracks']['track']
-        for track in tracks:
-            track['album'] = json['album']['name']
-            if json['album']['artist'] != track['artist']['name']:
 
-                # Performer is album artist.
-                track['performer'] = json['album']['artist']
-            if 'mbid' in json['album'] and len(json['album']['mbid']) > 0:
-                track['musicbrainz_albumid'] = json['album']['mbid']
+        album = {}
+        album['albumartist'] = tree.findtext('/album/artist')
+        album['album'] = tree.findtext('/album/name')
+        album['musicbrainz_albumid'] = tree.findtext('/album/mbid')
+
+        tracks = []
+        for element in tree.iter('track'):
+            track = dict(album)
+            track['track'] = element.get('rank')
+            track['title'] = element.findtext('name')
+            track['musicbrainz_trackid'] = element.findtext('mbid')
+            track['artist'] = element.findtext('artist/name')
+
+
+            for key in track.keys():
+                if track[key] is None or len(track[key]) == 0:
+                    del track[key]
+
+            if 'albumartist' in track and 'artist' in track:
+                if track['artist'] == track['albumartist']:
+                    del track['albumartist']
+
+            tracks.append(track)
+
+        if len(tracks) == 0:
+            QMessageBox.information(self.parent(),
+                                    'No tracks found',
+                                    'No tracks found')
+
+        self.parent().trackModel.empty()
         self.parent().trackModel.addItems(tracks)
         self.__checkWritable()
 
@@ -345,7 +363,7 @@ class TrackModel(ListModel):
         super(TrackModel, self).__init__(parent)
 
     def getData(self, row):
-        return self._items[row]['name']
+        return self._items[row]['title']
 
 
 def main():
