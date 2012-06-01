@@ -128,8 +128,6 @@ class LastController(QObject):
                                                    QFileDialog.ShowDirsOnly)
         self.parent().pathLabel.setText(directory)
         directory = realpath(directory)
-        #directoryEdit = self.parent().directoryEdit
-        #directoryEdit.setText(directory)
 
         paths = (realpath(join(directory, filename))
                  for filename in sorted(listdir(directory)))
@@ -211,18 +209,17 @@ class LastController(QObject):
             track['title'] = element.findtext('name')
             track['musicbrainz_trackid'] = element.findtext('mbid')
             track['artist'] = element.findtext('artist/name')
+            track['musicbrainz_artistid'] = element.findtext('artist/mbid')
 
+            #for key in track.keys():
+            #    if track[key] is None or len(track[key]) == 0:
+            #        del track[key]
 
-            for key in track.keys():
-                if track[key] is None or len(track[key]) == 0:
-                    del track[key]
-
-            if 'albumartist' in track and 'artist' in track:
-                if track['artist'] == track['albumartist']:
-                    del track['albumartist']
+            #if 'albumartist' in track and 'artist' in track:
+            #    if track['artist'] == track['albumartist']:
+            #        del track['albumartist']
 
             tracks.append(track)
-
 
         self.parent().trackModel.empty()
 
@@ -239,7 +236,24 @@ class LastController(QObject):
             self.parent().urlLabel.setText(link)
 
         self.parent().trackModel.addItems(tracks)
+
+
+        # An extra request just to get the album artist's mbid:
+        reply = self.__getReply({'method': 'artist.getinfo',
+                                  'artist': album['albumartist']})
+        reply.finished.connect(self.__loadAlbumArtist)
+
+    def __loadAlbumArtist(self):
+
+        reply = self.sender()
+        tree = etree.parse(StringIO(reply.readAll().data()))
+        reply.deleteLater()
+
+        print tree.findtext('/mbid')
+
         self.__checkWritable()
+
+
 
     def __checkWritable(self):
         hasFiles = self.parent().fileModel.rowCount() > 0
