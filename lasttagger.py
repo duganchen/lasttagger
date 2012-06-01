@@ -44,14 +44,15 @@ class LastTagger(QMainWindow):
         self.directoryEdit.setReadOnly(True)
         directoryLayout.addWidget(self.directoryEdit)
         fileLayout.addLayout(directoryLayout)
-        fileView = QListView()
-        self.fileModel = FileModel(fileView)
-        fileView.setModel(self.fileModel)
-        fileLayout.addWidget(fileView)
 
         self.pathLabel = QLabel()
         self.pathLabel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         fileLayout.addWidget(self.pathLabel)
+
+        fileView = QListView()
+        self.fileModel = FileModel(fileView)
+        fileView.setModel(self.fileModel)
+        fileLayout.addWidget(fileView)
 
         directoryWidget = QWidget()
         directoryWidget.setLayout(fileLayout)
@@ -70,15 +71,15 @@ class LastTagger(QMainWindow):
         tagLayout.addLayout(albumLayout)
 
         trackView = QListView()
-        self.trackModel = TrackModel(trackView)
-        trackView.setModel(self.trackModel)
-        tagLayout.addWidget(trackView)
 
         self.urlLabel = QLabel()
         self.urlLabel.setOpenExternalLinks(True)
         self.urlLabel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         tagLayout.addWidget(self.urlLabel)
 
+        self.trackModel = TrackModel(trackView)
+        trackView.setModel(self.trackModel)
+        tagLayout.addWidget(trackView)
 
         albumWidget = QWidget()
         albumWidget.setLayout(tagLayout)
