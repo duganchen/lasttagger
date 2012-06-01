@@ -40,13 +40,13 @@ class LastTagger(QMainWindow):
         directoryLayout = QHBoxLayout()
         self.directoryButton = QPushButton('Choose &directory:')
         directoryLayout.addWidget(self.directoryButton)
-        self.directoryEdit = QLineEdit()
-        self.directoryEdit.setReadOnly(True)
-        directoryLayout.addWidget(self.directoryEdit)
+        #self.directoryEdit = QLineEdit()
+        #self.directoryEdit.setReadOnly(True)
+        #directoryLayout.addWidget(self.directoryEdit)
         fileLayout.addLayout(directoryLayout)
 
         self.pathLabel = QLabel()
-        self.pathLabel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.pathLabel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
         fileLayout.addWidget(self.pathLabel)
 
         fileView = QListView()
@@ -74,7 +74,7 @@ class LastTagger(QMainWindow):
 
         self.urlLabel = QLabel()
         self.urlLabel.setOpenExternalLinks(True)
-        self.urlLabel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.urlLabel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
         tagLayout.addWidget(self.urlLabel)
 
         self.trackModel = TrackModel(trackView)
@@ -126,9 +126,10 @@ class LastController(QObject):
                                                    'Select Directory',
                                                    start,
                                                    QFileDialog.ShowDirsOnly)
+        self.parent().pathLabel.setText(directory)
         directory = realpath(directory)
-        directoryEdit = self.parent().directoryEdit
-        directoryEdit.setText(directory)
+        #directoryEdit = self.parent().directoryEdit
+        #directoryEdit.setText(directory)
 
         paths = (realpath(join(directory, filename))
                  for filename in sorted(listdir(directory)))
@@ -197,6 +198,7 @@ class LastController(QObject):
         tree = etree.parse(StringIO(reply.readAll().data()))
         reply.deleteLater()
 
+
         album = {}
         album['albumartist'] = tree.findtext('/album/artist')
         album['album'] = tree.findtext('/album/name')
@@ -221,12 +223,21 @@ class LastController(QObject):
 
             tracks.append(track)
 
+
+        self.parent().trackModel.empty()
+
         if len(tracks) == 0:
             QMessageBox.information(self.parent(),
                                     'No tracks found',
                                     'No tracks found')
+            self.parent().urlLabel.clear()
+            return
 
-        self.parent().trackModel.empty()
+        url = tree.findtext('/album/url')
+        if url is not None:
+            link = '<a href="{0}">{0}</a>'.format(url)
+            self.parent().urlLabel.setText(link)
+
         self.parent().trackModel.addItems(tracks)
         self.__checkWritable()
 
