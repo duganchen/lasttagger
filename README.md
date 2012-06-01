@@ -11,7 +11,8 @@ Dependencies
 ------------
 
 * [PyQt4](http://www.riverbankcomputing.com/software/pyqt)
-* [Mutagen](http://code.google.com/p/mutagen/)
+* [Mutagen](http://code.google.com/p/mutagen)
+* [lxml](http://lxml.de)
 
 If you can install these dependencies, then you can run Last Tagger.
 
