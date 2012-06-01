@@ -21,6 +21,8 @@ from base64 import b64decode
 from cStringIO import StringIO
 from lxml import etree
 from mutagen import File
+from mutagen.easyid3 import EasyID3
+
 from os import listdir
 from os.path import basename, exists, expanduser, isfile, join, realpath
 import sys
@@ -40,9 +42,6 @@ class LastTagger(QMainWindow):
         directoryLayout = QHBoxLayout()
         self.directoryButton = QPushButton('Choose &directory:')
         directoryLayout.addWidget(self.directoryButton)
-        #self.directoryEdit = QLineEdit()
-        #self.directoryEdit.setReadOnly(True)
-        #directoryLayout.addWidget(self.directoryEdit)
         fileLayout.addLayout(directoryLayout)
 
         self.pathLabel = QLabel()
@@ -138,6 +137,7 @@ class LastController(QObject):
         self.__checkWritable()
 
     def __searchAlbum(self):
+        self.parent().writeButton.setEnabled(False)
         album = self.parent().albumEdit.text().strip()
         reply = self.__getReply({'method': 'album.search',
                                   'album': album})
@@ -205,19 +205,11 @@ class LastController(QObject):
         tracks = []
         for element in tree.iter('track'):
             track = dict(album)
-            track['track'] = element.get('rank')
+            track['tracknumber'] = element.get('rank')
             track['title'] = element.findtext('name')
             track['musicbrainz_trackid'] = element.findtext('mbid')
             track['artist'] = element.findtext('artist/name')
             track['musicbrainz_artistid'] = element.findtext('artist/mbid')
-
-            #for key in track.keys():
-            #    if track[key] is None or len(track[key]) == 0:
-            #        del track[key]
-
-            #if 'albumartist' in track and 'artist' in track:
-            #    if track['artist'] == track['albumartist']:
-            #        del track['albumartist']
 
             tracks.append(track)
 
@@ -237,11 +229,19 @@ class LastController(QObject):
 
         self.parent().trackModel.addItems(tracks)
 
-
-        # An extra request just to get the album artist's mbid:
-        reply = self.__getReply({'method': 'artist.getinfo',
-                                  'artist': album['albumartist']})
-        reply.finished.connect(self.__loadAlbumArtist)
+        # If we have even one collaborative track on the album,
+        # we need to deal with it.
+        collaborations = [track for track in tracks
+                if track['albumartist'] != track['artist']]
+        if len(collaborations) > 0:
+            # An extra request just to get the album artist's mbid:
+            reply = self.__getReply({'method': 'artist.getinfo',
+                                      'artist': album['albumartist']})
+            reply.finished.connect(self.__loadAlbumArtist)
+        else:
+            for track in tracks:
+                del track['albumartist']
+                self.__checkWritable()
 
     def __loadAlbumArtist(self):
 
@@ -249,11 +249,14 @@ class LastController(QObject):
         tree = etree.parse(StringIO(reply.readAll().data()))
         reply.deleteLater()
 
-        print tree.findtext('/mbid')
+        mbid = tree.findtext('/artist/mbid')
+
+        if mbid is not None:
+            for i in xrange(self.parent().trackModel.rowCount()):
+                item = self.parent().trackModel.item(i)
+                item['musicbrainz_albumartistid'] = mbid
 
         self.__checkWritable()
-
-
 
     def __checkWritable(self):
         hasFiles = self.parent().fileModel.rowCount() > 0
@@ -268,57 +271,19 @@ class LastController(QObject):
             audio = self.parent().fileModel.item(row)
             track = self.parent().trackModel.item(row)
 
-            if 'name' in track and len(track['name'].strip()) > 0:
-                audio['title'] = track['name']
-            elif 'title' in audio:
-                del audio['title']
-
-            if 'album' in track and len(track['album'].strip()) > 0:
-                audio['album'] = track['album']
-            elif 'album' in audio:
-                del audio['album']
-
-            if 'musicbrainz_albumid' in track and len(track['musicbrainz_albumid'].strip()) > 0:
-                audio['musicbrainz_albumid'] = track['musicbrainz_albumid']
-            elif 'musicbrainz_albumid' in audio:
-                del audio['musicbrainz_albumid']
-
-            if 'mbid' in track and len(track['mbid'].strip()) > 0:
-                audio['musicbrainz_trackid'] = track['mbid']
-            elif 'musicbrainz_trackid' in audio:
-                del audio['musicbrainz_trackid']
-
-            # As far as I can tell, performer and albumartist are the same tag.
+            # It's "albumartist".
             if 'performer' in audio:
                 del audio['performer']
+            if 'album artist' in audio:
+                del audio['album artist']
+            if 'albumartist' in track:
+                audio['albumartist'] = track['albumartist']
 
-            if 'performer' in track and track['performer'] != track['artist']['name']:
-                audio['albumartist'] = track['performer']
-            elif 'albumartist' in audio:
-                del audio['albumartist']
-
-            if 'artist' in track:
-                if 'name' in track['artist'] and len(track['artist']) > 0:
-                    audio['artist'] = track['artist']['name']
-                elif 'artist' in audio:
-                    del audio['artist']
-
-                if 'mbid' in track['artist'] and len(track['artist']['mbid']) > 0:
-                    audio['musicbrainz_artistid'] = track['artist']['mbid']
-                elif 'musicbrainz_artistid' in audio:
-                    del audio['musicbrainz_artistid']
-            elif 'artist' in audio:
-                del audio['artist']
-
-            if 'artist' in track and 'name' in track['artist'] and len(track['artist']['name']) > 0:
-                audio['artist'] = track['artist']['name']
-            elif 'artist' in audio:
-                del audio['artist']
-
-            if '@attr' in track and 'rank' in track['@attr'] and len(track['@attr']['rank']) > 0:
-                audio['tracknumber'] = track['@attr']['rank']
-            elif 'tracknumber' in audio:
-                del audio['tracknumber']
+            for key in EasyID3.valid_keys.keys():
+                if track.get(key) is not None and len(track.get(key)) > 0:
+                    audio[key] = track[key]
+                elif key in audio:
+                    del audio[key]
 
             audio.save()
 
