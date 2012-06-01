@@ -14,7 +14,8 @@ from PyQt4.QtCore import (QAbstractListModel, QModelIndex, QObject, Qt, QUrl,
 from PyQt4.QtGui import (QApplication, QDialog, QDialogButtonBox, QFileDialog,
                          QHBoxLayout, QLabel, QLineEdit, QListView,
                          QMainWindow, QMessageBox, QPushButton, QSplitter,
-                         QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+                         QTreeWidget, QTreeWidgetItem, QSizePolicy,
+                         QVBoxLayout, QWidget)
 from PyQt4.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from base64 import b64decode
 from cStringIO import StringIO
@@ -47,6 +48,11 @@ class LastTagger(QMainWindow):
         self.fileModel = FileModel(fileView)
         fileView.setModel(self.fileModel)
         fileLayout.addWidget(fileView)
+
+        self.pathLabel = QLabel()
+        self.pathLabel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        fileLayout.addWidget(self.pathLabel)
+
         directoryWidget = QWidget()
         directoryWidget.setLayout(fileLayout)
         splitter.addWidget(directoryWidget)
@@ -62,15 +68,24 @@ class LastTagger(QMainWindow):
         albumLayout.addWidget(self.albumButton)
         tagLayout = QVBoxLayout()
         tagLayout.addLayout(albumLayout)
+
         trackView = QListView()
         self.trackModel = TrackModel(trackView)
         trackView.setModel(self.trackModel)
         tagLayout.addWidget(trackView)
+
+        self.urlLabel = QLabel()
+        self.urlLabel.setOpenExternalLinks(True)
+        self.urlLabel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        tagLayout.addWidget(self.urlLabel)
+
+
         albumWidget = QWidget()
         albumWidget.setLayout(tagLayout)
         splitter.addWidget(albumWidget)
 
         layout.addWidget(splitter)
+
 
         self.writeButton = QPushButton('&Write tags')
         self.writeButton.setEnabled(False)
