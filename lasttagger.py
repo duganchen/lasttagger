@@ -22,7 +22,7 @@ from cStringIO import StringIO
 from lxml import etree
 from mutagen import File
 from mutagen.easyid3 import EasyID3
-
+from mutagen.mp3 import EasyMP3
 from os import listdir
 from os.path import basename, exists, expanduser, isfile, join, realpath
 import sys
@@ -271,19 +271,23 @@ class LastController(QObject):
             audio = self.parent().fileModel.item(row)
             track = self.parent().trackModel.item(row)
 
-            # It's "albumartist".
-            if 'performer' in audio:
+            # It's "performer" for MP3s, "albumartist" for everything else.
+
+            if type(audio) == EasyMP3 and 'albumartist' in track:
+                audio['performer'] = track['albumartist']
+            if type(audio) != EasyMP3 and 'performer' in audio:
                 del audio['performer']
-            if 'album artist' in audio:
+            if type(audio) != EasyMP3 and 'album artist' in audio:
                 del audio['album artist']
-            if 'albumartist' in track:
+            if type(audio) != EasyMP3 and 'albumartist' in track:
                 audio['albumartist'] = track['albumartist']
 
             for key in EasyID3.valid_keys.keys():
-                if track.get(key) is not None and len(track.get(key)) > 0:
-                    audio[key] = track[key]
-                elif key in audio:
-                    del audio[key]
+                if key != 'performer':
+                    if track.get(key) is not None and len(track.get(key)) > 0:
+                        audio[key] = track[key]
+                    elif key in audio:
+                        del audio[key]
 
             audio.save()
 
