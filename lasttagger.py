@@ -272,13 +272,22 @@ class LastController(QObject):
             track = self.parent().trackModel.item(row)
 
             # It's "performer" for MP3s, "albumartist" for everything else.
+            if type(audio) == EasyMP3:
+                if 'albumartist' in track:
+                    audio['performer'] = track['albumartist']
+                elif 'performer' in audio:
+                    del audio['performer']
+            else:
+                if 'performer' in track:
+                    del track['performer']
+                if 'album artist' in track:
+                    del track['album artist']
+                if 'albumartist' in track:
+                    audio['albumartist'] = track['albumartist']
+                elif 'albumartist' in audio:
+                    del audio['albumartist']
 
-            if 'albumartist' in track:
-                if type(audio) == EasyMP3:
-                    if 'albumartist' in track:
-                        audio['performer'] = track['albumartist']
-                    elif 'performer' in track:
-                        del audio['performer']
+
 
             #if type(audio) == EasyMP3 and 'albumartist' in track:
             #    audio['performer'] = track['albumartist']
