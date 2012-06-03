@@ -273,14 +273,21 @@ class LastController(QObject):
 
             # It's "performer" for MP3s, "albumartist" for everything else.
 
-            if type(audio) == EasyMP3 and 'albumartist' in track:
-                audio['performer'] = track['albumartist']
-            if type(audio) != EasyMP3 and 'performer' in audio:
-                del audio['performer']
-            if type(audio) != EasyMP3 and 'album artist' in audio:
-                del audio['album artist']
-            if type(audio) != EasyMP3 and 'albumartist' in track:
-                audio['albumartist'] = track['albumartist']
+            if 'albumartist' in track:
+                if type(audio) == EasyMP3:
+                    if 'albumartist' in track:
+                        audio['performer'] = track['albumartist']
+                    elif 'performer' in track:
+                        del audio['performer']
+
+            #if type(audio) == EasyMP3 and 'albumartist' in track:
+            #    audio['performer'] = track['albumartist']
+            #if type(audio) != EasyMP3 and 'performer' in audio:
+            #    del audio['performer']
+            #if type(audio) != EasyMP3 and 'album artist' in audio:
+            #    del audio['album artist']
+            #if type(audio) != EasyMP3 and 'albumartist' in track:
+            #    audio['albumartist'] = track['albumartist']
 
             for key in EasyID3.valid_keys.keys():
                 if key != 'performer':
